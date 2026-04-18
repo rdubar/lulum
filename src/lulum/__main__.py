@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+import asyncio
+
+from lulum.cli import build_parser
+from lulum.config import Config
+from lulum.engine.apple import AppleEngine
+from lulum.engine.mlx import MLXEngine
+from lulum.engine.ollama import OllamaEngine
+from lulum.shell import Shell
+
+
+async def _run() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    config = Config.load()
+
+    engines = [
+        AppleEngine(),
+        OllamaEngine(host=config.ollama_host),
+        MLXEngine(),
+    ]
+
+    shell = Shell(engines=engines)
+
+    if args.subcommand == "engines":
+        await shell._cmd_engines()
+        return
+
+    if args.subcommand == "models":
+        await shell._detect_engines()
+        await shell._cmd_models()
+        return
+
+    model = args.model or config.default_model
+    await shell.run(initial_model=model, command=args.command)
+
+
+def main() -> None:
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        print("\nBye!")
+
+
+if __name__ == "__main__":
+    main()
