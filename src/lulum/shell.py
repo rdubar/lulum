@@ -94,8 +94,7 @@ class Shell:
         print()
 
     def _prompt(self) -> str:
-        model = self.active_model or "no model"
-        return f"lulum [{model}]> "
+        return "> "
 
     async def _handle_command(self, raw: str) -> bool:
         parts = raw.split(maxsplit=1)
@@ -104,10 +103,12 @@ class Shell:
 
         commands: dict[str, object] = {
             "/engines": self._cmd_engines,
+            "/engine": self._cmd_engine,
             "/models": self._cmd_models,
             "/use": lambda: self._cmd_use(arg),
             "/history": self._cmd_history,
             "/clear": self._cmd_clear,
+            "/version": self._cmd_version,
             "/help": self._cmd_help,
             "/quit": None,
             "/exit": None,
@@ -195,14 +196,25 @@ class Shell:
         self.history.clear()
         print("Conversation cleared.\n")
 
+    async def _cmd_version(self) -> None:
+        print(f"\n  lulum v{__version__}\n")
+
+    async def _cmd_engine(self) -> None:
+        if self.active_model:
+            print(f"\n  {self.active_model}\n")
+        else:
+            print("\n  No model loaded — use /use engine:model\n")
+
     async def _cmd_help(self) -> None:
         print(
             """
   /use engine:model   Load a model (e.g. /use ollama:llama3.2)
+  /engine             Show active engine and model
   /engines            List available engines
   /models             List available models
   /history            Show conversation history
   /clear              Clear conversation history
+  /version            Show version
   /help               Show this help
   /quit               Exit lulum
 """
