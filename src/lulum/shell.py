@@ -109,6 +109,7 @@ class Shell:
             "/history": self._cmd_history,
             "/clear": self._cmd_clear,
             "/version": self._cmd_version,
+            "/credits": self._cmd_credits,
             "/help": self._cmd_help,
             "/quit": None,
             "/exit": None,
@@ -199,6 +200,17 @@ class Shell:
     async def _cmd_version(self) -> None:
         print(f"\n  lulum v{__version__}\n")
 
+    async def _cmd_credits(self) -> None:
+        print(
+            f"\n"
+            f"  lulum v{__version__}\n"
+            f"  https://github.com/rdubar/llmer\n"
+            f"\n"
+            f"  Built and maintained by Roger Dubar (https://github.com/rdubar)\n"
+            f"  Development assistance: Claude (Anthropic), Codex (OpenAI)\n"
+            f"  MIT License\n"
+        )
+
     async def _cmd_engine(self) -> None:
         if self.active_model:
             print(f"\n  {self.active_model}\n")
@@ -215,6 +227,7 @@ class Shell:
   /history            Show conversation history
   /clear              Clear conversation history
   /version            Show version
+  /credits            Show credits and project URL
   /help               Show this help
   /quit               Exit lulum
 """

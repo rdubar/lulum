@@ -14,6 +14,9 @@ def build_parser() -> argparse.ArgumentParser:
         "-V", "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
+        "--credits", action="store_true", help="Show credits and project URL"
+    )
+    parser.add_argument(
         "-m", "--model", help="Model to load on start (engine:model)"
     )
     parser.add_argument(

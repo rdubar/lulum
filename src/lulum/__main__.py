@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from lulum import __version__
 from lulum.cli import build_parser
 from lulum.config import Config
 from lulum.engine.apple import AppleEngine
@@ -22,6 +23,18 @@ async def _run() -> None:
     ]
 
     shell = Shell(engines=engines)
+
+    if args.credits:
+        print(
+            f"\n"
+            f"  lulum v{__version__}\n"
+            f"  https://github.com/rdubar/llmer\n"
+            f"\n"
+            f"  Built and maintained by Roger Dubar (https://github.com/rdubar)\n"
+            f"  Development assistance: Claude (Anthropic), Codex (OpenAI)\n"
+            f"  MIT License\n"
+        )
+        return
 
     if args.subcommand == "engines":
         await shell._cmd_engines()
