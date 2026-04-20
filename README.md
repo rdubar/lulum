@@ -38,7 +38,7 @@ uv tool uninstall lulum
 ## Development setup
 
 ```bash
-git clone https://github.com/rosh-studio/lulum
+git clone https://github.com/rdubar/lulum
 cd lulum
 uv sync
 uv run lulum
@@ -98,6 +98,21 @@ lulum models                   # list available models
 | `/clear`             | Clear conversation         |
 | `/help`              | Show help                  |
 | `/quit`              | Exit                       |
+
+## Popular models
+
+Via Ollama — install a model with `ollama pull <name>`, then load it in lulum with `/use ollama:<name>`:
+
+| Model | Command | Notes |
+|-------|---------|-------|
+| **Gemma 3** (Google) | `ollama pull gemma3` | Free, open-source, strong general performance |
+| **Llama 3.2** (Meta) | `ollama pull llama3.2` | Good all-rounder; 1b/3b/11b sizes |
+| **Mistral** | `ollama pull mistral` | Fast, efficient 7B model |
+| **Phi-4** (Microsoft) | `ollama pull phi4` | Small but capable reasoning model |
+| **Qwen 2.5** (Alibaba) | `ollama pull qwen2.5` | Strong coding and multilingual |
+| **Apple Intelligence** | built-in | macOS 26+ with Apple Silicon, no download |
+
+Browse the full catalogue at [ollama.com/library](https://ollama.com/library).
 
 ## Engines
 
