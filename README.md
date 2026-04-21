@@ -73,6 +73,13 @@ Then inside the shell:
 Hello!
 ```
 
+If Ollama is installed and running but has no local models yet, `lulum` will
+tell you and suggest a pull command like:
+
+```bash
+ollama pull llama3.2:1b
+```
+
 ## Usage
 
 ### Interactive shell
@@ -83,7 +90,7 @@ $ lulum
   Restored 6 saved messages. Use /clear to start fresh.
 
   lulum v0.1.2
-  Engines: apple (ready), ollama (ready), mlx (not available)
+  Engines: apple (ready), ollama (ready, no models), mlx (not available)
   Active: apple:on-device
 
 > /use ollama:llama3.2:1b
@@ -195,7 +202,9 @@ Browse the full catalogue at [ollama.com/library](https://ollama.com/library).
 | MLX | Scaffolded | Apple Silicon | `uv sync --extra mlx` |
 | BitNet | Planned | macOS/Linux | 1-bit LLM inference |
 
-Engines degrade gracefully — lulum auto-detects what's available at startup and skips engines that aren't installed or supported on the current platform.
+Engines degrade gracefully — lulum auto-detects what's available at startup,
+retries Ollama briefly if it is still coming up, and distinguishes between
+"engine unavailable" and "engine is ready but has no discovered models yet."
 
 ## Architecture
 

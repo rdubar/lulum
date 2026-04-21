@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
 from typing import AsyncIterator
 
 from lulum.engine.base import Engine, ModelInfo
@@ -16,11 +18,20 @@ class MLXEngine(Engine):
 
     async def is_available(self) -> bool:
         try:
-            import mlx_lm  # noqa: F401
-
-            return True
-        except ImportError:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                [
+                    sys.executable,
+                    "-c",
+                    "import mlx_lm",  # noqa: S603
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
             return False
+        return result.returncode == 0
 
     async def list_models(self) -> list[ModelInfo]:
         if self._model_name:

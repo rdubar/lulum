@@ -5,6 +5,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from lulum import __version__
+from lulum.engine.base import ModelInfo
 from lulum.history import LocalHistory
 from lulum.updater import run_update
 
@@ -20,6 +21,7 @@ class Shell:
         self.history: list[dict[str, str]] = []
         self.local_history = LocalHistory()
         self._engine_status: dict[str, bool] = {}
+        self._engine_models: dict[str, list[ModelInfo]] = {}
 
     async def run(
         self,
@@ -37,7 +39,7 @@ class Shell:
 
         if command:
             if not self.active_engine:
-                print("Error: no model loaded. Specify with -m engine:model")
+                self._print_no_model_message()
                 return
             await self._chat(command)
             return
@@ -66,30 +68,84 @@ class Shell:
                 await self._chat(user_input)
 
     async def _detect_engines(self) -> None:
-        tasks = {name: engine.is_available() for name, engine in self.engines.items()}
-        for name, coro in tasks.items():
-            self._engine_status[name] = await coro
+        results = await asyncio.gather(
+            *(self._probe_engine(name, engine) for name, engine in self.engines.items())
+        )
+        self._engine_status = {name: available for name, available, _ in results}
+        self._engine_models = {name: models for name, _, models in results}
+
+    async def _probe_engine(
+        self, name: str, engine: Engine
+    ) -> tuple[str, bool, list[ModelInfo]]:
+        available = await self._engine_available_with_retry(name, engine)
+        if not available:
+            return name, False, []
+
+        try:
+            models = await engine.list_models()
+        except Exception:
+            models = []
+        return name, True, models
+
+    async def _engine_available_with_retry(self, name: str, engine: Engine) -> bool:
+        if name != "ollama":
+            return await engine.is_available()
+
+        delays = (0.0, 0.4, 1.0)
+        for index, delay in enumerate(delays):
+            if delay:
+                await asyncio.sleep(delay)
+            if await engine.is_available():
+                return True
+            if index == len(delays) - 1:
+                break
+        return False
+
+    def _engine_status_text(self, name: str) -> str:
+        if not self._engine_status.get(name):
+            return "not available"
+
+        models = self._engine_models.get(name, [])
+        if name == "ollama" and not models:
+            return "ready, no models"
+
+        return "ready"
+
+    def _discovered_model_count(self) -> int:
+        return sum(len(models) for models in self._engine_models.values())
+
+    def _startup_guidance_lines(self) -> list[str]:
+        lines: list[str] = []
+
+        if self._engine_status.get("ollama") and not self._engine_models.get("ollama"):
+            lines.append("  Ollama is running but has no pulled models yet.")
+            lines.append("  Try: ollama pull llama3.2:1b")
+
+        if self._engine_status.get("mlx") and not self._engine_models.get("mlx"):
+            lines.append("  MLX is ready. Load a model directly with /use mlx:<model-repo>.")
+
+        return lines
 
     async def _auto_select_model(self, reset_history: bool = True) -> None:
+        total_models = self._discovered_model_count()
         for name, engine in self.engines.items():
             if not self._engine_status.get(name):
                 continue
-            models = await engine.list_models()
+            models = self._engine_models.get(name, [])
             if models:
                 model = models[0]
                 await self._cmd_use(model.full_name, reset_history=reset_history)
-                print(f"  Auto-selected {model.full_name} (only available model)")
-                if len(models) > 1:
-                    print(f"  {len(models)} models available — use /models to see all\n")
+                print(f"  Auto-selected {model.full_name}")
+                if total_models == 1:
+                    print("  Only 1 discovered model is ready right now.\n")
                 else:
-                    print()
+                    print(f"  {total_models} discovered models available — use /models to see all\n")
                 return
 
     def _print_banner(self) -> None:
         parts = []
-        for name, available in self._engine_status.items():
-            status = "ready" if available else "not available"
-            parts.append(f"{name} ({status})")
+        for name in self._engine_status:
+            parts.append(f"{name} ({self._engine_status_text(name)})")
         engines_str = ", ".join(parts)
 
         print(f"\n  lulum v{__version__}")
@@ -98,10 +154,19 @@ class Shell:
             print(f"  Active: {self.active_model}")
         else:
             print("  No model loaded — use /use engine:model")
+            for line in self._startup_guidance_lines():
+                print(line)
         print()
 
     def _prompt(self) -> str:
         return "> "
+
+    def _print_no_model_message(self) -> None:
+        print("Error: no model loaded.")
+        print("Specify one with -m engine:model or /use engine:model.")
+        for line in self._startup_guidance_lines():
+            print(line)
+        print()
 
     async def _handle_command(self, raw: str) -> bool:
         parts = raw.split(maxsplit=1)
@@ -138,26 +203,39 @@ class Shell:
     async def _cmd_engines(self) -> None:
         await self._detect_engines()
         print()
-        for name, available in self._engine_status.items():
-            status = "\033[32mready\033[0m" if available else "\033[31mnot available\033[0m"
+        for name in self._engine_status:
+            status_text = self._engine_status_text(name)
+            status = (
+                f"\033[32m{status_text}\033[0m"
+                if self._engine_status.get(name)
+                else f"\033[31m{status_text}\033[0m"
+            )
             active = " *" if (self.active_engine and self.active_engine.name == name) else ""
             print(f"  {name:<12} {status}{active}")
         print()
 
     async def _cmd_models(self) -> None:
+        await self._detect_engines()
         print()
         found = False
         for name, engine in self.engines.items():
             if not self._engine_status.get(name):
                 continue
-            models = await engine.list_models()
+            models = self._engine_models.get(name, [])
             for m in models:
                 found = True
                 size = f"  ({m.size})" if m.size else ""
                 params = f"  [{m.params}]" if m.params else ""
                 print(f"  {m.full_name:<40}{size}{params}")
+            if name == "ollama" and not models:
+                print("  ollama: running, but no models are installed yet")
+                print("          try: ollama pull llama3.2:1b")
+            if name == "mlx" and not models:
+                print("  mlx: ready — load a model directly with /use mlx:<model-repo>")
         if not found:
-            print("  No models found. Pull a model first (e.g. `ollama pull llama3.2`)")
+            print("  No auto-discovered models found.")
+            for line in self._startup_guidance_lines():
+                print(line)
         print()
 
     async def _cmd_use(self, arg: str, reset_history: bool = True) -> None:
