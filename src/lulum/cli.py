@@ -17,6 +17,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--credits", action="store_true", help="Show credits and project URL"
     )
     parser.add_argument(
+        "-u",
+        "--update",
+        action="store_true",
+        help="Run `uv tool upgrade lulum` and exit",
+    )
+    parser.add_argument(
         "-m", "--model", help="Model to load on start (engine:model)"
     )
     parser.add_argument(

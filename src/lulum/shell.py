@@ -5,6 +5,8 @@ import sys
 from typing import TYPE_CHECKING
 
 from lulum import __version__
+from lulum.history import LocalHistory
+from lulum.updater import run_update
 
 if TYPE_CHECKING:
     from lulum.engine.base import Engine
@@ -16,6 +18,7 @@ class Shell:
         self.active_engine: Engine | None = None
         self.active_model: str | None = None
         self.history: list[dict[str, str]] = []
+        self.local_history = LocalHistory()
         self._engine_status: dict[str, bool] = {}
 
     async def run(
@@ -23,13 +26,14 @@ class Shell:
         initial_model: str | None = None,
         command: str | None = None,
     ) -> None:
+        self.local_history.initialize_input_history()
         await self._detect_engines()
 
         if initial_model:
-            await self._cmd_use(initial_model)
+            await self._cmd_use(initial_model, reset_history=False)
 
         if not self.active_engine:
-            await self._auto_select_model()
+            await self._auto_select_model(reset_history=False)
 
         if command:
             if not self.active_engine:
@@ -38,6 +42,7 @@ class Shell:
             await self._chat(command)
             return
 
+        self._restore_history()
         self._print_banner()
 
         while True:
@@ -51,6 +56,8 @@ class Shell:
             if not user_input:
                 continue
 
+            self.local_history.save_input_history()
+
             if user_input.startswith("/"):
                 should_quit = await self._handle_command(user_input)
                 if should_quit:
@@ -63,14 +70,14 @@ class Shell:
         for name, coro in tasks.items():
             self._engine_status[name] = await coro
 
-    async def _auto_select_model(self) -> None:
+    async def _auto_select_model(self, reset_history: bool = True) -> None:
         for name, engine in self.engines.items():
             if not self._engine_status.get(name):
                 continue
             models = await engine.list_models()
             if models:
                 model = models[0]
-                await self._cmd_use(model.full_name)
+                await self._cmd_use(model.full_name, reset_history=reset_history)
                 print(f"  Auto-selected {model.full_name} (only available model)")
                 if len(models) > 1:
                     print(f"  {len(models)} models available — use /models to see all\n")
@@ -106,8 +113,9 @@ class Shell:
             "/engine": self._cmd_engine,
             "/models": self._cmd_models,
             "/use": lambda: self._cmd_use(arg),
+            "/update": self._cmd_update,
             "/history": self._cmd_history,
-            "/clear": self._cmd_clear,
+            "/clear": lambda: self._cmd_clear(arg),
             "/version": self._cmd_version,
             "/credits": self._cmd_credits,
             "/help": self._cmd_help,
@@ -152,7 +160,7 @@ class Shell:
             print("  No models found. Pull a model first (e.g. `ollama pull llama3.2`)")
         print()
 
-    async def _cmd_use(self, arg: str) -> None:
+    async def _cmd_use(self, arg: str, reset_history: bool = True) -> None:
         if ":" not in arg:
             print("Usage: /use engine:model  (e.g. /use ollama:llama3.2)")
             return
@@ -177,7 +185,8 @@ class Shell:
             await engine.load_model(model_name)
             self.active_engine = engine
             self.active_model = f"{engine_name}:{model_name}"
-            self.history.clear()
+            if reset_history:
+                self._clear_conversation_history()
             print(f"Ready.\n")
         except Exception as e:
             print(f"Failed to load model: {e}\n")
@@ -193,9 +202,33 @@ class Shell:
             print(f"  [{i}] {role}: {preview}")
         print()
 
-    async def _cmd_clear(self) -> None:
-        self.history.clear()
-        print("Conversation cleared.\n")
+    async def _cmd_update(self) -> None:
+        await run_update()
+
+    async def _cmd_clear(self, arg: str = "") -> None:
+        target = arg.strip().lower()
+
+        if target in ("", "all"):
+            self._clear_conversation_history()
+            if self.local_history.clear_input_history():
+                print("Local conversation and input history cleared.\n")
+            else:
+                print("Conversation cleared. Input history is unavailable on this system.\n")
+            return
+
+        if target in ("chat", "conversation"):
+            self._clear_conversation_history()
+            print("Conversation history cleared.\n")
+            return
+
+        if target in ("input", "inputs", "lines"):
+            if self.local_history.clear_input_history():
+                print("Input history cleared.\n")
+            else:
+                print("Input history is unavailable on this system.\n")
+            return
+
+        print("Usage: /clear [all|chat|input]\n")
 
     async def _cmd_version(self) -> None:
         print(f"\n  lulum v{__version__}\n")
@@ -204,7 +237,7 @@ class Shell:
         print(
             f"\n"
             f"  lulum v{__version__}\n"
-            f"  https://github.com/rdubar/llmer\n"
+            f"  https://github.com/rdubar/lulum\n"
             f"\n"
             f"  Built and maintained by Roger Dubar (https://github.com/rdubar)\n"
             f"  Development assistance: Claude (Anthropic), Codex (OpenAI)\n"
@@ -219,17 +252,29 @@ class Shell:
 
     async def _cmd_help(self) -> None:
         print(
-            """
-  /use engine:model   Load a model (e.g. /use ollama:llama3.2)
-  /engine             Show active engine and model
-  /engines            List available engines
-  /models             List available models
-  /history            Show conversation history
-  /clear              Clear conversation history
-  /version            Show version
-  /credits            Show credits and project URL
-  /help               Show this help
-  /quit               Exit lulum
+            f"""
+  lulum v{__version__}
+
+  Session
+    /use engine:model   Load a model (e.g. /use ollama:llama3.2)
+    /engine             Show the active engine and model
+    /engines            List detected engines and availability
+    /models             List models from available engines
+    /update             Run `uv tool upgrade lulum`
+
+  History
+    /history            Show saved conversation history
+    /clear              Clear saved conversation and input history
+    /clear chat         Clear only saved conversation history
+    /clear input        Clear only arrow-key prompt history
+
+  Info
+    /version            Show version
+    /credits            Show credits, repo URL, and license
+    /help               Show this help
+    /quit               Exit lulum
+
+  Local history lives in ~/.local/state/lulum/
 """
         )
 
@@ -254,3 +299,26 @@ class Shell:
         sys.stdout.write("\n\n")
         sys.stdout.flush()
         self.history.append({"role": "assistant", "content": "".join(full_response)})
+        self.local_history.save_chat_history(self.history, model=self.active_model)
+
+    def _restore_history(self) -> None:
+        stored_model, history = self.local_history.load_chat_history()
+        if not history:
+            return
+
+        if stored_model and self.active_model and stored_model != self.active_model:
+            print(
+                f"  Saved history for {stored_model} was not restored because"
+                f" the active model is {self.active_model}. Use /clear to remove it.\n"
+            )
+            return
+
+        self.history = history
+        print(
+            f"  Restored {len(self.history)} saved messages."
+            f" Use /clear to start fresh.\n"
+        )
+
+    def _clear_conversation_history(self) -> None:
+        self.history.clear()
+        self.local_history.clear_chat_history()
