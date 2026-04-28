@@ -14,6 +14,12 @@ dependencies = [
 [project.optional-dependencies]
 mlx = ["mlx-lm>=0.19"]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.11",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/lulum"]
 
@@ -22,3 +28,6 @@ packages = ["src/lulum"]
 
 [project.scripts]
 lulum = "lulum.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

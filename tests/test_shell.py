@@ -119,6 +119,52 @@ class ShellStartupTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ollama (ready, no models)", banner)
         self.assertIn("Try: ollama pull llama3.2:1b", banner)
 
+    async def test_restore_history_restores_when_model_matches(self) -> None:
+        shell = Shell(engines=[FakeEngine("apple")])
+        shell.active_model = "apple:on-device"
+        shell.local_history = type(
+            "StubHistory",
+            (),
+            {
+                "load_chat_history": staticmethod(
+                    lambda: (
+                        "apple:on-device",
+                        [{"role": "user", "content": "Hello"}],
+                    )
+                )
+            },
+        )()
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            shell._restore_history()
+
+        self.assertEqual(shell.history, [{"role": "user", "content": "Hello"}])
+        self.assertIn("Restored 1 saved messages", output.getvalue())
+
+    async def test_restore_history_skips_when_model_differs(self) -> None:
+        shell = Shell(engines=[FakeEngine("apple")])
+        shell.active_model = "apple:on-device"
+        shell.local_history = type(
+            "StubHistory",
+            (),
+            {
+                "load_chat_history": staticmethod(
+                    lambda: (
+                        "ollama:llama3.2:1b",
+                        [{"role": "user", "content": "Hello"}],
+                    )
+                )
+            },
+        )()
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            shell._restore_history()
+
+        self.assertEqual(shell.history, [])
+        self.assertIn("was not restored because the active model is apple:on-device", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

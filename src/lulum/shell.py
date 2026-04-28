@@ -265,7 +265,7 @@ class Shell:
             self.active_model = f"{engine_name}:{model_name}"
             if reset_history:
                 self._clear_conversation_history()
-            print(f"Ready.\n")
+            print("Ready.\n")
         except Exception as e:
             print(f"Failed to load model: {e}\n")
 

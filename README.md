@@ -43,8 +43,10 @@ uv tool uninstall lulum
 ```bash
 git clone https://github.com/rdubar/lulum
 cd lulum
-uv sync
+uv sync --group dev
 uv run lulum
+uv run pytest -q
+uv run ruff check .
 ```
 
 `uv sync` commands only work from inside a cloned `lulum` project directory that
