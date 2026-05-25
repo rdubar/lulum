@@ -88,20 +88,21 @@ ollama pull llama3.2:1b
 
 ```text
 $ lulum
+Loading ollama:gemma4:e2b...
+Ready.
 
-  Restored 6 saved messages. Use /clear to start fresh.
+  Auto-selected ollama:gemma4:e2b
 
   lulum v0.1.2
-  Engines: apple (ready), ollama (ready, no models), mlx (not available)
-  Active: apple:on-device
-
-> /use ollama:llama3.2:1b
-Loading ollama:llama3.2:1b...
-Ready.
+  Engines: apple (ready), ollama (ready), mlx (not available)
+  Active: ollama:gemma4:e2b
 
 > Hello!
 Hi there! How can I help you today?
 ```
+
+lulum remembers the last model you used and restores it automatically on the
+next launch. If that model is unavailable, it falls back to auto-selection.
 
 ### One-shot mode
 
@@ -146,14 +147,15 @@ lulum --credits                # show version, project URL, author, and license
 
 | Command | Description |
 |---------|-------------|
-| `/use engine:model` | Load a model |
+| `/use engine:model` | Load a model (e.g. `/use ollama:llama3.2`) |
+| `/reset` | Switch to the default auto-selected model |
 | `/engine` | Show the active engine and model |
-| `/engines` | List engines and status |
-| `/models` | List available models |
+| `/engines` | List engines, status, and available models |
+| `/models` | List all available models |
 | `/update` | Upgrade the installed tool via `uv` |
 | `/history` | Show saved conversation history |
 | `/clear` | Clear saved chat + input history |
-| `/clear chat`        | Clear only saved chat history |
+| `/clear chat` | Clear only saved chat history |
 | `/clear input` | Clear only prompt history |
 | `/version` | Show version |
 | `/credits` | Show credits, repo URL, and license |
@@ -171,6 +173,8 @@ Inside the interactive shell:
 
 `lulum` stores history locally per user in `~/.local/state/lulum/`.
 
+- `last_model.txt` records the last model you used so it is restored automatically
+  on the next launch. Override with `-m engine:model` or switch with `/use`.
 - `chat_history.json` stores the conversation that `/history` shows and that can
   be restored when you reopen the shell. Saved chat history is restored only when
   it matches the active model.

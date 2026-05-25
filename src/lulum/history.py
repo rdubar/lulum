@@ -14,6 +14,7 @@ type ChatHistoryPayload = tuple[str | None, list[Message]]
 STATE_DIR = Path.home() / ".local" / "state" / "lulum"
 CHAT_HISTORY_PATH = STATE_DIR / "chat_history.json"
 INPUT_HISTORY_PATH = STATE_DIR / "input_history.txt"
+LAST_MODEL_PATH = STATE_DIR / "last_model.txt"
 
 
 class LocalHistory:
@@ -21,9 +22,11 @@ class LocalHistory:
         self,
         chat_history_path: Path = CHAT_HISTORY_PATH,
         input_history_path: Path = INPUT_HISTORY_PATH,
+        last_model_path: Path = LAST_MODEL_PATH,
     ) -> None:
         self.chat_history_path = chat_history_path
         self.input_history_path = input_history_path
+        self.last_model_path = last_model_path
 
     def load_chat_history(self) -> ChatHistoryPayload:
         if not self.chat_history_path.exists():
@@ -63,6 +66,16 @@ class LocalHistory:
         temp_path = self.chat_history_path.with_suffix(".tmp")
         temp_path.write_text(json.dumps(payload, indent=2))
         temp_path.replace(self.chat_history_path)
+
+    def load_last_model(self) -> str | None:
+        try:
+            return self.last_model_path.read_text().strip() or None
+        except OSError:
+            return None
+
+    def save_last_model(self, model: str) -> None:
+        self._ensure_state_dir()
+        self.last_model_path.write_text(model)
 
     def clear_chat_history(self) -> None:
         if self.chat_history_path.exists():

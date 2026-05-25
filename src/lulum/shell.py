@@ -31,8 +31,9 @@ class Shell:
         self.local_history.initialize_input_history()
         await self._detect_engines()
 
-        if initial_model:
-            await self._cmd_use(initial_model, reset_history=False)
+        startup_model = initial_model or self.local_history.load_last_model()
+        if startup_model:
+            await self._cmd_use(startup_model, reset_history=False)
 
         if not self.active_engine:
             await self._auto_select_model(reset_history=False)
@@ -178,6 +179,7 @@ class Shell:
             "/engine": self._cmd_engine,
             "/models": self._cmd_models,
             "/use": lambda: self._cmd_use(arg),
+            "/reset": self._cmd_reset,
             "/update": self._cmd_update,
             "/history": self._cmd_history,
             "/clear": lambda: self._cmd_clear(arg),
@@ -212,6 +214,12 @@ class Shell:
             )
             active = " *" if (self.active_engine and self.active_engine.name == name) else ""
             print(f"  {name:<12} {status}{active}")
+            models = self._engine_models.get(name, [])
+            if len(models) > 1:
+                for m in models:
+                    size = f"  {m.size}" if m.size else ""
+                    active_model = f" *" if self.active_model == m.full_name else ""
+                    print(f"    {m.name:<30}{size}{active_model}")
         print()
 
     async def _cmd_models(self) -> None:
@@ -247,8 +255,18 @@ class Shell:
 
         engine = self.engines.get(engine_name)
         if not engine:
-            available = ", ".join(self.engines.keys())
-            print(f"Unknown engine: {engine_name}. Available: {available}")
+            suggestions = [
+                m.full_name
+                for models in self._engine_models.values()
+                for m in models
+                if m.name == arg
+            ]
+            if suggestions:
+                joined = ", ".join(f"/use {s}" for s in suggestions)
+                print(f"Unknown engine: {engine_name}. Did you mean: {joined}?")
+            else:
+                available = ", ".join(self.engines.keys())
+                print(f"Unknown engine: {engine_name}. Available: {available}")
             return
 
         if not self._engine_status.get(engine_name):
@@ -263,6 +281,7 @@ class Shell:
             await engine.load_model(model_name)
             self.active_engine = engine
             self.active_model = f"{engine_name}:{model_name}"
+            self.local_history.save_last_model(self.active_model)
             if reset_history:
                 self._clear_conversation_history()
             print("Ready.\n")
@@ -279,6 +298,13 @@ class Shell:
             preview = content[:80] + ("..." if len(content) > 80 else "")
             print(f"  [{i}] {role}: {preview}")
         print()
+
+    async def _cmd_reset(self) -> None:
+        if self.active_engine:
+            await self.active_engine.unload()
+            self.active_engine = None
+            self.active_model = None
+        await self._auto_select_model()
 
     async def _cmd_update(self) -> None:
         await run_update()
@@ -335,6 +361,7 @@ class Shell:
 
   Session
     /use engine:model   Load a model (e.g. /use ollama:llama3.2)
+    /reset              Switch to the default auto-selected model
     /engine             Show the active engine and model
     /engines            List detected engines and availability
     /models             List models from available engines
